@@ -1,0 +1,68 @@
+'use client'; // Required for hooks
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation'; // Changed from react-router-dom
+import Link from 'next/link';
+import api from '@/lib/api'; // Use alias @ or relative path
+
+export default function LoginPage() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const router = useRouter();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    const formData = new FormData();
+    formData.append('username', username);
+    formData.append('password', password);
+
+    try {
+      const response = await api.post('/auth/token', formData);
+      localStorage.setItem('token', response.data.access_token);
+      router.push('/dashboard'); // Navigate to dashboard
+    } catch (err) {
+      setError("Invalid credentials. Please try again.");
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 rounded-lg shadow-md w-96">
+        <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Welcome Back</h2>
+
+        {error && <div className="bg-red-100 text-red-700 p-2 rounded mb-4 text-sm">{error}</div>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Username</label>
+            <input
+              type="text" required
+              className="w-full mt-1 p-2 border rounded text-black"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <input
+              type="password" required
+              className="w-full mt-1 p-2 border rounded text-black"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="w-full bg-gray-900 text-white py-2 rounded hover:bg-gray-800 transition">
+            Sign In
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-sm text-gray-600">
+          Don't have an account? <Link href="/register" className="text-blue-600 hover:underline">Register</Link>
+        </p>
+      </div>
+    </div>
+  );
+}

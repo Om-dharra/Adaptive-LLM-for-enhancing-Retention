@@ -1,0 +1,41 @@
+# System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Common
+.env
+.env.*
+*.log
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.db
+*.sqlite
+*.sqlite3
+
+# Specific Project Files (FastAPI)
+fastapi/api/learning.db
+fastapi/api/50k_student_telemetry_data.csv
+fastapi/api/ml/dependency_detection_model.json
+fastapi/api/ml/feature_importance.png
+fastapi/api/ml/q_table.json
+
+# Node.js / Next.js
+node_modules/
+.next/
+dist/
+out/
+build/
+.pnp
+.pnp.js
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
