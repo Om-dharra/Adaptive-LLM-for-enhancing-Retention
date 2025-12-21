@@ -6,6 +6,7 @@ from .database import Base,engine
 
 from api.routers import chat
 from api.routers import quiz
+from api.routers import analytics
 
 app = FastAPI()
 
@@ -29,3 +30,4 @@ def health_check():
 app.include_router(chat.router)
 app.include_router(quiz.router)
 app.include_router(auth.router)
+app.include_router(analytics.router)

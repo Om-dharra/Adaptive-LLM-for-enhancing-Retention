@@ -4,9 +4,36 @@ from api.models import UserHistory, QuizScore, StudentSkillIndex, LearningPath, 
 from api.ml.engine import predict_dependency_probability
 from api.services.telemetry_service import aggregate_session_features
 
+import torch
+from api.services.dkt_model import DKTModel
+
+NUM_SKILLS = 50
+model = DKTModel(num_skills=NUM_SKILLS)
+
 WEIGHT_RETENTION = 0.4
 WEIGHT_INDEPENDENCE = 0.3
 WEIGHT_QUALITY = 0.3
+
+def get_student_mastery(interaction_history):
+
+    if not interaction_history:
+        return [0.5] * NUM_SKILLS 
+        
+    input_seq = []
+    for item in interaction_history:
+        skill = item['skill_id']
+        correct = item['correct']
+        
+        input_id = skill + (NUM_SKILLS * correct)
+        input_seq.append(input_id)
+        
+    input_tensor = torch.tensor([input_seq])
+    
+    with torch.no_grad():
+        predictions, _ = model(input_tensor)
+    
+    final_state_predictions = predictions[0, -1, :]
+    return final_state_predictions.tolist()
 
 def calculate_ssi(user_id: int, db: Session) -> float:
     recent_quizzes = db.query(QuizScore)\
@@ -42,75 +69,46 @@ def calculate_ssi(user_id: int, db: Session) -> float:
         Q = max(0.0, min(100.0, (avg_len / 200) * 100))
 
     ssi_value = (WEIGHT_RETENTION * R) + (WEIGHT_INDEPENDENCE * I) + (WEIGHT_QUALITY * Q)
-    return round(ssi_value, 2)
-
-def update_student_profile(user_id: int, db: Session):
-    new_ssi = calculate_ssi(user_id, db)
-    
-    if new_ssi < 40.0:
-        bucket = "Weak"
-        path_type = "Reinforcement"
-def update_student_profile(user_id: int, new_ssi: float, dependency_prob: float, db: Session):
-    
-    current_skill = db.query(StudentSkillIndex).filter(StudentSkillIndex.user_id == user_id).first()
-    current_path = db.query(LearningPath).filter(LearningPath.user_id == user_id).first()
-
-    old_ssi = current_skill.index_value if current_skill else 50.0
-    current_bucket = current_skill.bucket if current_skill else "Moderate"
-    
-    if not current_skill:
-        current_skill = StudentSkillIndex(user_id=user_id, index_value=new_ssi, bucket="Moderate")
-        db.add(current_skill)
-    else:
-        current_skill.index_value = new_ssi
-        
-    bucket = "Weak" if new_ssi < 40 else ("Strong" if new_ssi > 75 else "Moderate")
-    current_skill.bucket = bucket
-    
-    dependency_level = "High" if dependency_prob > 0.6 else "Low"
-    
-    reward = 0
-    if new_ssi > old_ssi:
-        reward += 10
-    elif new_ssi < old_ssi:
-        reward -= 10
-    
-    if dependency_prob < 0.4:
-        reward += 5
-        
-    last_action = current_path.path_type if current_path else "Balanced"
-    
-    rl_agent.learn(current_bucket, dependency_level, last_action, reward, bucket, dependency_level)
-    
-
-    next_action_path = rl_agent.choose_action(bucket, dependency_level)
-    
-    if not current_path:
-        current_path = LearningPath(
-             user_id=user_id, 
-             path_type=next_action_path, 
-             current_difficulty=1
-        )
-        db.add(current_path)
-    else:
-        current_path.path_type = next_action_path
-        
-    if bucket == "Weak":
-        current_path.current_difficulty = 1
-    elif bucket == "Strong":
-        current_path.current_difficulty = 3
-    else:
-        current_path.current_difficulty = 2
-
-    path_record = current_path 
-    path_record.path_type = next_action_path
-    
-    db.commit()
-
     return {
-        "ssi": new_ssi,
-        "bucket": bucket,
-        "dependency_prob": dependency_prob,
-        "learning_path": next_action_path,
-        "rl_reward": reward
+        "ssi": round(ssi_value, 2),
+        "dependency_prob": dependency_prob
     }
+
+def update_student_profile(user_id: int, db: Session, current_session_id: str = None):
+    
+    # Calculate SSI using real data (Quiz Scores + Telemetry + Chat History)
+    metrics = calculate_ssi(user_id, db)
+    ssi = metrics['ssi']
+    dependency_prob = metrics['dependency_prob']
+    
+    # Update Skill Index Record
+    skill_record = db.query(StudentSkillIndex).filter_by(user_id=user_id).first()
+    if not skill_record:
+        skill_record = StudentSkillIndex(user_id=user_id)
+        db.add(skill_record)
+    
+    skill_record.index_value = ssi
+    
+    # Determine Strength Bucket
+    if ssi < 40:
+        skill_record.bucket = "Weak"
+    elif ssi > 70:
+        skill_record.bucket = "Strong"
+    else:
+        skill_record.bucket = "Moderate"
+
+    # Update Learning Path
+    path_record = db.query(LearningPath).filter_by(user_id=user_id).first()
+    if not path_record:
+        path_record = LearningPath(user_id=user_id)
+        db.add(path_record)
+
+    if ssi < 40:
+        path_record.path_type = "Reinforcement" 
+    elif ssi > 70:
+        path_record.path_type = "Acceleration"
+    else:
+        path_record.path_type = "Balanced"
+
+    db.commit()
+    print(f"DEBUG: XGBoost Prob: {dependency_prob:.2f} | New SSI: {ssi:.2f} | Path: {path_record.path_type} | Bucket: {skill_record.bucket}")

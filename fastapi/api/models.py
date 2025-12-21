@@ -29,6 +29,7 @@ class UserHistory(Base):
     prompt = Column(String)
     response = Column(String)
     embedding_vector = Column(JSON, nullable=True) 
+    telemetry_data = Column(JSON, nullable=True) # New Telemetry Column
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     user = relationship("User", back_populates="history")

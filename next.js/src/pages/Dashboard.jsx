@@ -31,7 +31,7 @@ const Dashboard = () => {
                         <h3 className="text-gray-500 text-sm font-bold uppercase mb-2">Your Skill Index</h3>
                         <div className="flex items-end gap-2">
                             <span className="text-5xl font-bold text-blue-600">
-                                {user.skill_index?.index_value || 50}
+                                {user.skill_index?.index_value ? Number(user.skill_index.index_value).toFixed(1) : 50}
                             </span>
                             <span className="text-gray-400 mb-2">/ 100</span>
                         </div>

@@ -40,6 +40,21 @@ export default function ChatSidebar({ onSelectSession, onNewChat }) {
         onNewChat();
     };
 
+    const handleDeleteSession = async (e, sessionId) => {
+        e.stopPropagation();
+        if (!confirm("Are you sure you want to delete this chat?")) return;
+
+        try {
+            await api.delete(`/chat/sessions/${sessionId}`);
+            setSessions(prev => prev.filter(s => s.session_id !== sessionId));
+            if (selectedId === sessionId) {
+                handleNewChat();
+            }
+        } catch (err) {
+            console.error("Failed to delete", err);
+        }
+    };
+
     if (!isOpen) {
         return (
             <button
@@ -83,8 +98,8 @@ export default function ChatSidebar({ onSelectSession, onNewChat }) {
                             key={session.session_id}
                             onClick={() => handleSelect(session)}
                             className={`group relative p-3 rounded-lg cursor-pointer border transition ${selectedId === session.session_id
-                                    ? 'bg-blue-50 border-blue-200'
-                                    : 'hover:bg-gray-50 border-transparent hover:border-gray-200'
+                                ? 'bg-blue-50 border-blue-200'
+                                : 'hover:bg-gray-50 border-transparent hover:border-gray-200'
                                 }`}
                         >
                             <p className={`text-sm font-medium truncate pr-6 ${selectedId === session.session_id ? 'text-blue-800' : 'text-gray-800'
@@ -98,6 +113,14 @@ export default function ChatSidebar({ onSelectSession, onNewChat }) {
                                     selectedId === session.session_id ? 'text-blue-400' : 'text-gray-300'
                                 } />
                             </div>
+
+                            <button
+                                onClick={(e) => handleDeleteSession(e, session.session_id)}
+                                className="absolute top-3 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                title="Delete Chat"
+                            >
+                                <Trash2 size={16} />
+                            </button>
                         </div>
                     ))
                 )}

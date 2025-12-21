@@ -13,14 +13,18 @@ from api.deps import get_current_user
 from typing import List
 from api.services.adaptive_engine import update_student_profile
 
+import google.generativeai as genai
+from groq import Groq
+import os
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 router = APIRouter(
     prefix="/chat",
     tags=["chat"]
 )
+
 
 def calculate_cosine_similarity(vec_a, vec_b):
     if not vec_a or not vec_b:
@@ -50,13 +54,16 @@ def get_embedding(text: str):
         return []
 
 def get_system_persona(learning_path: LearningPath, struggle_override: bool = False) -> str:
-
     if struggle_override:
         return (
-            "SYSTEM ALERT: The user is repeating a question, indicating a retention failure. "
-            "Do NOT answer the question directly. "
-            "Instead, ask a simple guiding question (Socratic Method) to help them realize the answer. "
-            "Be patient and encouraging."
+            "SYSTEM OVERRIDE: ACTIVE RECALL MODE ENABLED.\n"
+            "The user is stuck in a loop and is repeating a question. They did not understand the previous explanation.\n"
+            "RULES:\n"
+            "1. DO NOT repeat your previous answer.\n"
+            "2. DO NOT give the direct solution or definition immediately.\n"
+            "3. Switch to 'Socratic Tutor' mode: Ask a simple, foundational question to check their understanding.\n"
+            "4. Break the concept down into smaller steps (Scaffolding).\n"
+            "5. Be empathetic but firm on not giving the answer yet."
         )
 
     # Standard Persona Logic
@@ -72,31 +79,55 @@ def get_system_persona(learning_path: LearningPath, struggle_override: bool = Fa
     else:
         return "You are a balanced tutor. Explain clearly."
 
-def call_llm_service(system_prompt: str, chat_history: List[dict], user_message: str) -> str:
+def call_llm_service(system_prompt: str, chat_history: List[dict], user_message: str, model_choice: str = "gemini") -> str:
+    """
+    Calls the selected LLM service.
+    For 'gemini', it implements a fail-safe mechanism: 
+    Try 'gemini-1.5-pro' first -> if it fails (Rate Limit), fall back to 'gemini-1.5-flash'.
+    """
 
-    try:
-       
+    # Helper function to avoid rewriting the Gemini setup twice
+    def _call_gemini_model(model_name: str):
         model = genai.GenerativeModel(
-            model_name="gemini-flash-latest",
+            model_name=model_name,
             system_instruction=system_prompt
         )
-
+        
         gemini_history = []
         for msg in chat_history:
             gemini_history.append({"role": "user", "parts": [msg['prompt']]})
             gemini_history.append({"role": "model", "parts": [msg['response']]})
 
         chat = model.start_chat(history=gemini_history)
-
-    
         response = chat.send_message(user_message)
-        
         return response.text
 
+    try:
+        # --- OPTION 1: LLAMA 3 (GROQ) ---
+        if model_choice == "llama3":
+            messages = [{"role": "system", "content": system_prompt}]
+            for msg in chat_history:
+                messages.append({"role": "user", "content": msg['prompt']})
+                messages.append({"role": "assistant", "content": msg['response']})
+            messages.append({"role": "user", "content": user_message})
+
+            chat_completion = groq_client.chat.completions.create(
+                messages=messages,
+                model="llama-3.1-8b-instant",
+            )
+            return chat_completion.choices[0].message.content
+
+        else:
+            try:
+                return _call_gemini_model("gemini-1.5-flash")
+            
+            except Exception as e:
+                print(f"WARNING: Primary Gemini Pro model failed ({e}). Switching to Flash fallback...")
+                return _call_gemini_model("gemini-1.5-flash")
+
     except Exception as e:
-        print(f"Gemini API Error: {e}")
-    
-        return "I'm having trouble connecting to my brain right now. Please try again."
+        print(f"CRITICAL LLM ERROR ({model_choice}): {e}")
+        return f"I'm having trouble thinking with {model_choice} right now. Please try again."
 
 @router.post("/message", response_model=UserHistoryResponse)
 async def chat_with_ai(
@@ -108,25 +139,17 @@ async def chat_with_ai(
         user_id = current_user['user_id']
         prompt = chat_request.prompt
         session_id = chat_request.session_id
+        selected_model = getattr(chat_request, 'model', 'gemini')
 
-        # 1. Handle Session Creation
         import uuid
         if not session_id:
             session_id = str(uuid.uuid4())
-            # Generate a title for the new session based on the first prompt
-            try:
-                model = genai.GenerativeModel("gemini-flash-latest")
-                title_response = model.generate_content(f"Generate a short 3-5 word title for a chat that starts with: '{prompt}'")
-                title = title_response.text.strip().replace('"', '')
-            except:
-                title = "New Chat"
+            title = "New Chat"  
         else:
-            title = None # Title already exists for this session
+            title = None
 
-        # 2. Get User Context (Learning Path & Skill Index)
         learning_path = db.query(LearningPath).filter(LearningPath.user_id == user_id).first()
         
-        # 3. Retrieve recent history for THIS SESSION for context
         history_limit = 5
         recent_history = db.query(UserHistory)\
             .filter(UserHistory.user_id == user_id, UserHistory.session_id == session_id)\
@@ -135,41 +158,57 @@ async def chat_with_ai(
             .all()
         
         chat_history_list = [{"prompt": h.prompt, "response": h.response} for h in reversed(recent_history)]
-
-        # 4. Check for Struggle / Retention Failure (Vector Similarity)
-        current_embedding = get_embedding(prompt)
+        current_embedding = get_embedding(prompt) 
         struggle_detected = False
         
-        if recent_history and current_embedding:
-            last_msg = recent_history[0]
-            if last_msg.embedding_vector:
-                similarity = calculate_cosine_similarity(current_embedding, last_msg.embedding_vector)
-                if similarity > 0.85: # High similarity = User repeating themselves
-                    struggle_detected = True
+        if current_embedding and recent_history:
+            print(f"DEBUG: Checking {len(recent_history)} past messages for similarity...")
+            for past_msg in recent_history:
+                if past_msg.embedding_vector:
+                    similarity = calculate_cosine_similarity(current_embedding, past_msg.embedding_vector)
+                    print(f"DEBUG: Similarity with past msg: {similarity:.4f}")
+                    
+                    if similarity > 0.70: # Lowered from 0.85
+                        print("DEBUG: Struggle Detected!")
+                        struggle_detected = True
+                        break   
+        else:
+             print("DEBUG: No current embedding or history found.")
 
-        # 5. Determine Persona & Call LLM
-        system_persona = get_system_persona(learning_path, struggle_override=struggle_detected)
-        ai_response = call_llm_service(system_persona, chat_history_list, prompt)
-
-        # 6. Adaptive Engine Update (Simulated for every interaction for now)
-        # In a real app, we might only update after a "session" or significant event
-        # Here we do a dry run or small update if needed. 
-        # For now, we rely on QUIZ updates to drive the engine, but we could add "Heuristic" updates here.
+        llm_input = prompt
         
-        # 7. Save Interaction
+        if struggle_detected:
+ 
+            llm_input = (
+                f"{prompt}\n\n"
+                "[SYSTEM NOTE: The user has asked this exact question again. "
+                "The previous answer failed. Do NOT repeat it. "
+                "Ask a guiding question instead to test my understanding.]"
+            )
+
+        system_persona = get_system_persona(learning_path, struggle_override=struggle_detected)
+        
+
+        ai_response = call_llm_service(system_persona, chat_history_list, llm_input, selected_model)
+
         new_interaction = UserHistory(
             user_id=user_id,
             session_id=session_id,
-            title=title if title else None, # Only save title on first message of session
-            prompt=prompt,
+            title=title if title else None,
+            prompt=prompt, # Save original prompt
             response=ai_response,
-            embedding_vector=current_embedding if current_embedding else []
+            embedding_vector=current_embedding if current_embedding else [],
+            telemetry_data=chat_request.telemetry_data # Save telemetry
         )
         
         db.add(new_interaction)
         db.commit()
         db.refresh(new_interaction)
-        
+
+        try:
+             update_student_profile(user_id, db, session_id) 
+        except Exception as e:
+             print(f"Adaptive Engine Update Failed: {e}")
         return new_interaction
 
     except Exception as e:
@@ -220,11 +259,11 @@ async def get_sessions(
     # Group by session_id to get unique sessions and their titles
     sessions = db.query(
         UserHistory.session_id, 
-        UserHistory.title, 
+        func.max(UserHistory.title).label('title'), 
         func.max(UserHistory.created_at).label('last_updated')
     )\
     .filter(UserHistory.user_id == user_id, UserHistory.session_id != None)\
-    .group_by(UserHistory.session_id, UserHistory.title)\
+    .group_by(UserHistory.session_id)\
     .order_by(desc('last_updated'))\
     .all()
     
@@ -249,3 +288,18 @@ async def get_session_history(
         .all()
     
     return history
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    # Delete all messages for this session
+    db.query(UserHistory).filter(
+        UserHistory.session_id == session_id,
+        UserHistory.user_id == current_user['user_id']
+    ).delete()
+    
+    db.commit()
+    return None

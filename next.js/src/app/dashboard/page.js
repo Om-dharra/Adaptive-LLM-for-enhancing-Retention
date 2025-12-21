@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import ChatInterface from '@/components/ChatInterface';
 import ChatSidebar from '@/components/ChatSidebar';
+import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 
 export default function DashboardPage() {
     const [user, setUser] = useState(null);
@@ -13,20 +14,22 @@ export default function DashboardPage() {
     const [sessionId, setSessionId] = useState(null);
 
 
-    useEffect(() => {
+    const fetchUser = () => {
         const token = localStorage.getItem('token');
         if (!token) {
             router.push('/');
             return;
         }
-
-        // Fetch user profile
         api.get('/auth/me')
             .then(res => setUser(res.data))
             .catch(() => {
                 localStorage.removeItem('token');
                 router.push('/');
             });
+    };
+
+    useEffect(() => {
+        fetchUser();
     }, [router]);
 
 
@@ -70,7 +73,7 @@ export default function DashboardPage() {
                     <div className="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-500">
                         <h3 className="text-gray-400 text-xs font-bold uppercase mb-1">Skill Index</h3>
                         <div className="text-4xl font-bold text-gray-800">
-                            {user.skill_index?.index_value || 50}
+                            {user.skill_index?.index_value ? Number(user.skill_index.index_value).toFixed(1) : 50}
                         </div>
                         <div className="mt-2 text-xs text-gray-500">
                             Path: <span className="font-medium text-blue-600">{user.learning_path?.path_type}</span>
@@ -78,7 +81,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Quiz CTA */}
-                    <div className="bg-gradient-to-br from-purple-600 to-indigo-700 p-6 rounded-lg shadow-sm text-white relative overflow-hidden group cursor-pointer" onClick={() => router.push('/quiz')}>
+                    <div className="bg-gradient-to-br from-purple-600 to-indigo-700 p-6 rounded-lg shadow-sm text-white relative overflow-hidden group cursor-pointer" onClick={() => router.push(sessionId ? `/quiz?session_id=${sessionId}` : '/quiz')}>
                         {/* Decorative circle */}
                         <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-white opacity-10 rounded-full group-hover:scale-125 transition-transform"></div>
 
@@ -101,11 +104,15 @@ export default function DashboardPage() {
 
                     {/* Chat Interface fills the remaining space */}
                     <div className="flex-1">
-                        <ChatInterface initialMessages={chatContext} sessionId={sessionId} />
+                        <ChatInterface initialMessages={chatContext} sessionId={sessionId} onMessageSent={fetchUser} />
                     </div>
                 </div>
 
             </div>
+
+            {/* Analytics Section */}
+            <AnalyticsDashboard />
+
         </div>
     );
 }

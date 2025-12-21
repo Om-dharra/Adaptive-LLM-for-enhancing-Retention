@@ -6,7 +6,7 @@ from datetime import datetime
 class StudentSkillIndexBase(BaseModel):
     index_value: float = Field(..., ge=0, le=100, description="Composite score 0-100")
     bucket: str = Field(..., description="Weak, Moderate, or Strong")
-    metrics_json: Dict[str, Any] = Field(default_factory=dict, description="Detailed sub-metrics like Retention Rate")
+    metrics_json: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Detailed sub-metrics like Retention Rate")
 
 class LearningPathBase(BaseModel):
     path_type: str = Field(..., description="Reinforcement, Balanced, or Acceleration")
@@ -40,6 +40,8 @@ class QuizScoreCreate(QuizScoreBase):
 class UserHistoryCreate(BaseModel):
     prompt: str
     session_id: Optional[str] = None
+    model: Optional[str] = "gemini"
+    telemetry_data: Optional[Dict[str, Any]] = None # Capture Metrics
 
 class StudentSkillIndexResponse(StudentSkillIndexBase):
     id: int
@@ -66,6 +68,7 @@ class QuizScoreResponse(QuizScoreBase):
 
 class UserHistoryResponse(UserHistoryBase):
     id: int
+    telemetry_data: Optional[Dict[str, Any]] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
@@ -110,6 +113,9 @@ class QuizQuestion(BaseModel):
     options: List[QuestionOption]
     correct_option_id: str
     explanation: str  # For feedback after they answer
+
+class QuizGenerateRequest(BaseModel):
+    session_id: Optional[str] = None
 
 class GeneratedQuiz(BaseModel):
     topic: str

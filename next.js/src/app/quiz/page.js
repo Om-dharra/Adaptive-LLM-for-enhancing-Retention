@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function QuizPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const sessionId = searchParams.get('session_id');
+
     const [quizData, setQuizData] = useState(null);
     const [currentStep, setCurrentStep] = useState(0);
     const [score, setScore] = useState(0);
@@ -17,7 +20,8 @@ export default function QuizPage() {
     const loadQuiz = async () => {
         setLoading(true);
         try {
-            const res = await api.post('/quiz/generate');
+            const payload = sessionId ? { session_id: sessionId } : {};
+            const res = await api.post('/quiz/generate', payload);
             setQuizData(res.data);
         } catch (err) {
             alert("Failed to generate quiz. Try chatting more first!");

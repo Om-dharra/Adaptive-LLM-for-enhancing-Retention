@@ -1,16 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-import google.generativeai as genai
 import json
 import os
+from groq import Groq # Import Groq
 from api.services.adaptive_engine import update_student_profile
 from api.deps import get_db
 from api.models import UserHistory, QuizScore
-from api.schemas import GeneratedQuiz, QuizScoreCreate, QuizScoreResponse
+from api.schemas import GeneratedQuiz, QuizScoreCreate, QuizScoreResponse, QuizGenerateRequest
 from api.deps import get_current_user
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# Initialize Groq Client
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 router = APIRouter(
     prefix="/quiz",
@@ -20,14 +22,18 @@ router = APIRouter(
 
 @router.post("/generate", response_model=GeneratedQuiz)
 async def generate_quiz_from_context(
+    request: Optional[QuizGenerateRequest] = None,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     user_id = current_user['user_id']
     
-    recent_history = db.query(UserHistory)\
-        .filter(UserHistory.user_id == user_id)\
-        .order_by(desc(UserHistory.id))\
+    query = db.query(UserHistory).filter(UserHistory.user_id == user_id)
+    
+    if request and request.session_id:
+        query = query.filter(UserHistory.session_id == request.session_id)
+        
+    recent_history = query.order_by(desc(UserHistory.id))\
         .limit(3)\
         .all()
     
@@ -36,15 +42,27 @@ async def generate_quiz_from_context(
     
 
     context_text = "\n".join([f"Student: {h.prompt}\nAI Tutor: {h.response}" for h in reversed(recent_history)])
-  
+
+    # Identify Weak Topics (< 70% score)
+    weak_scores = db.query(QuizScore).filter(
+        QuizScore.user_id == user_id,
+        (QuizScore.score / QuizScore.total_questions) < 0.7
+    ).all()
+    
+    weak_topics = list(set([ws.topic_tag for ws in weak_scores if ws.topic_tag]))
+    weak_topics_str = ", ".join(weak_topics) if weak_topics else "None"
+
     prompt = f"""
     Based strictly on the following conversation context, generate a Micro-Quiz to test the student's retention.
+    
+    PRIORITY FOCUS: The student has previously struggled with: {weak_topics_str}.
+    If relevant to the context below, prioritize questions on these topics to reinforce learning.
     
     CONTEXT:
     {context_text}
     
     INSTRUCTIONS:
-    1. Create 3 Multiple Choice Questions (MCQs).
+    1. Create 5 Multiple Choice Questions (MCQs).
     2. Include 1 distractor answer that addresses a common misconception.
     3. Output must be valid JSON matching this structure:
     {{
@@ -67,14 +85,25 @@ async def generate_quiz_from_context(
     """
 
     try:
-
-        model = genai.GenerativeModel(
-            model_name="gemini-flash-latest",
-            generation_config={"response_mime_type": "application/json"}
+        # Generate Quiz using Groq (Llama 3)
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a quiz generator. Output ONLY valid JSON."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            model="llama-3.1-8b-instant",
+            temperature=0.7,
+            response_format={"type": "json_object"} # Force JSON mode
         )
-        
-        response = model.generate_content(prompt)
-        quiz_data = json.loads(response.text)
+
+        response_text = chat_completion.choices[0].message.content
+        quiz_data = json.loads(response_text)
         
         return quiz_data
 
