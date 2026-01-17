@@ -1,11 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function QuizPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
+            <QuizContent />
+        </Suspense>
+    );
+}
+
+function QuizContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const sessionId = searchParams.get('session_id');
