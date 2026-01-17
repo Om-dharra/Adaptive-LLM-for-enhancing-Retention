@@ -23,3 +23,6 @@ sniffio
 SQLAlchemy
 uvicorn
 email-validator
+numpy
+xgboost
+torch
