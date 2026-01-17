@@ -2,10 +2,11 @@ from typing import Annotated
 from sqlalchemy.orm import Session
 from fastapi import Depends,HTTPException,status
 from fastapi.security import OAuth2PasswordBearer
-from passlib.context import CryptContext
+
 from jose import JWTError, jwt
 from dotenv import load_dotenv
 import os
+import bcrypt
 from .database import SessionLocal
 
 load_dotenv()
@@ -22,7 +23,22 @@ def get_db():
         db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
-bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+class Hash:
+    @staticmethod
+    def hash(password: str) -> str:
+        pwd_bytes = password.encode('utf-8')
+        salt = bcrypt.gensalt()
+        hashed_password = bcrypt.hashpw(pwd_bytes, salt)
+        return hashed_password.decode('utf-8')
+
+    @staticmethod
+    def verify(plain_password: str, hashed_password: str) -> bool:
+        password_bytes = plain_password.encode('utf-8')
+        hash_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hash_bytes)
+
+bcrypt_context = Hash()
 
 oauth2_bearer = OAuth2PasswordBearer(tokenUrl="token")
 oauth2_bearer_dependency = Annotated[str, Depends(oauth2_bearer)]

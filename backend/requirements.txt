@@ -11,7 +11,7 @@ ecdsa
 fastapi>=0.110.1
 h11
 idna
-passlib
+
 pyasn1
 pydantic
 pydantic_core
