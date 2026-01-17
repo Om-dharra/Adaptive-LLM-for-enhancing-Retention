@@ -6,10 +6,10 @@ from typing import List, Optional
 import os
 import numpy as np
 import google.generativeai as genai
-from backend.api.deps import get_db, get_current_user
-from backend.api.models import User, UserHistory, LearningPath
-from backend.api.schemas import UserHistoryCreate, UserHistoryResponse
-from backend.api.services.adaptive_engine import update_student_profile
+from ..deps import get_db, get_current_user
+from ..models import User, UserHistory, LearningPath
+from ..schemas import UserHistoryCreate, UserHistoryResponse
+from ..services.adaptive_engine import update_student_profile
 from groq import Groq
 import uuid
 

@@ -5,11 +5,11 @@ from sqlalchemy import desc
 import json
 import os
 from groq import Groq # Import Groq
-from backend.api.services.adaptive_engine import update_student_profile
-from backend.api.deps import get_db
-from backend.api.models import UserHistory, QuizScore
-from backend.api.schemas import GeneratedQuiz, QuizScoreCreate, QuizScoreResponse, QuizGenerateRequest
-from backend.api.deps import get_current_user
+from ..services.adaptive_engine import update_student_profile
+from ..deps import get_db
+from ..models import UserHistory, QuizScore
+from ..schemas import GeneratedQuiz, QuizScoreCreate, QuizScoreResponse, QuizGenerateRequest
+from ..deps import get_current_user
 
 # Initialize Groq Client
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
