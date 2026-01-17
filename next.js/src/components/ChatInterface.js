@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { Send, User, Bot } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { useTelemetry } from '../hooks/useTelemetry';
 
@@ -10,7 +12,7 @@ const ChatInterface = ({ initialMessages, sessionId, onMessageSent }) => {
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState(initialMessages);
     const [loading, setLoading] = useState(false);
-    const [model, setModel] = useState("gemini");
+    const [model, setModel] = useState("llama3");
 
     // Telemetry Hook
     const { handleCopy, handlePaste, startTimer, stopTimer, getAndResetMetrics } = useTelemetry();
@@ -77,49 +79,104 @@ const ChatInterface = ({ initialMessages, sessionId, onMessageSent }) => {
 
     return (
         <div
-            className="flex flex-col h-[600px] border rounded-lg bg-gray-50 p-4"
-            onCopy={handleCopy} // Track Copies
+            className="flex flex-col h-[600px] border-none rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 p-6 shadow-xl"
+            onCopy={handleCopy}
         >
-            {/* Model Selector Header */}
-            <div className="flex justify-between items-center mb-4 px-2">
-                <span className="text-xs text-gray-500 font-medium">Model:</span>
-                <select
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="text-xs border rounded p-1 bg-white hover:border-gray-400 focus:outline-none"
-                >
-                    <option value="gemini">Gemini 1.5 Flash (Google)</option>
-                    <option value="llama3">Llama 3 8B (Groq)</option>
-                    <option value="deepseek">DeepSeek V3</option>
-                </select>
+            {/* Header Area */}
+            <div className="flex justify-between items-center mb-6 bg-white/50 p-3 rounded-xl backdrop-blur-sm">
+                <div className="flex items-center gap-2">
+                    <div className="bg-purple-100 p-2 rounded-full">
+                        <Bot className="text-purple-600" size={24} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-gray-800 text-sm">AI Tutor</h3>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Active</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 font-medium">✨ Brain:</span>
+                    <select
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        className="text-xs border-none bg-white rounded-lg px-3 py-1.5 shadow-sm text-gray-600 focus:ring-2 focus:ring-purple-200 focus:outline-none cursor-pointer hover:bg-gray-50 transition"
+                    >
+                        <option value="gemini">Gemini Flash ⚡</option>
+                        <option value="llama3">Llama 3 🦙</option>
+                        <option value="deepseek">DeepSeek 🐋</option>
+                    </select>
+                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto mb-4 space-y-4">
+            {/* Chat Area */}
+            <div className="flex-1 overflow-y-auto mb-4 space-y-6 pr-2 custom-scrollbar">
+                {messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 opacity-60">
+                        <Bot size={48} className="mb-2 text-purple-200" />
+                        <p className="text-sm">Say hello to start learning!</p>
+                    </div>
+                )}
+
                 {messages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border shadow-sm'}`}>
-                            <div className="flex items-center gap-2 mb-1 text-xs opacity-70">
-                                {msg.role === 'user' ? <User size={12} /> : <Bot size={12} />}
-                                <span>{msg.role === 'user' ? 'You' : (model === 'gemini' ? 'Gemini' : (model === 'llama3' ? 'Llama 3' : 'DeepSeek'))}</span>
+                    <div key={idx} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`flex max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'} items-end gap-2`}>
+                            {/* Avatar */}
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-blue-100' : 'bg-purple-100'
+                                }`}>
+                                {msg.role === 'user' ?
+                                    <User size={14} className="text-blue-600" /> :
+                                    <Bot size={14} className="text-purple-600" />
+                                }
                             </div>
-                            <p className="whitespace-pre-wrap">{msg.content}</p>
+
+                            {/* Bubble */}
+                            <div className={`px-4 py-3 rounded-2xl shadow-sm border text-sm leading-relaxed ${msg.role === 'user'
+                                ? 'bg-blue-600 text-white rounded-br-none border-blue-600'
+                                : 'bg-white text-gray-700 rounded-bl-none border-gray-100'
+                                }`}>
+                                <div className={`prose prose-sm max-w-none ${msg.role === 'user' ? 'prose-invert' : ''}`}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {msg.content}
+                                    </ReactMarkdown>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 ))}
-                {loading && <div className="text-center text-gray-400 animate-pulse">Thinking...</div>}
+
+                {loading && (
+                    <div className="flex justify-start w-full">
+                        <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-2xl rounded-bl-none shadow-sm border border-gray-100">
+                            <div className="flex space-x-1">
+                                <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                            </div>
+                            <span className="text-xs text-gray-400 ml-2 font-medium">Thinking...</span>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            <div className="flex gap-2">
+            {/* Input Area */}
+            <div className="mt-2 bg-white p-2 rounded-xl shadow-lg border border-gray-100 flex items-center gap-2">
                 <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                    onPaste={handlePaste} // Track Pastes
-                    className="flex-1 p-2 border rounded"
-                    placeholder="Ask a question..."
+                    onPaste={handlePaste}
+                    className="flex-1 p-3 bg-transparent text-gray-700 placeholder-gray-400 focus:outline-none text-sm"
+                    placeholder="Type your question here..."
                 />
-                <button onClick={handleSend} className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
-                    <Send size={20} />
+                <button
+                    onClick={handleSend}
+                    disabled={!input.trim()}
+                    className={`p-3 rounded-xl transition-all duration-200 ${input.trim()
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transform hover:scale-105 active:scale-95'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        }`}
+                >
+                    <Send size={18} />
                 </button>
             </div>
         </div>

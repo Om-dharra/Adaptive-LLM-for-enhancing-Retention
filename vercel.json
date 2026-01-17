@@ -1,0 +1,18 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:match*",
+      "destination": "/backend/api/index.py"
+    }
+  ],
+  "builds": [
+    {
+      "src": "next.js/package.json",
+      "use": "@vercel/next"
+    },
+    {
+      "src": "backend/api/index.py",
+      "use": "@vercel/python"
+    }
+  ]
+}

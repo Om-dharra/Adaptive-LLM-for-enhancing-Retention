@@ -82,8 +82,7 @@ def get_system_persona(learning_path: LearningPath, struggle_override: bool = Fa
 def call_llm_service(system_prompt: str, chat_history: List[dict], user_message: str, model_choice: str = "gemini") -> str:
     """
     Calls the selected LLM service.
-    For 'gemini', it implements a fail-safe mechanism: 
-    Try 'gemini-1.5-pro' first -> if it fails (Rate Limit), fall back to 'gemini-1.5-flash'.
+    Uses 'gemini-1.5-flash' for optimal speed and cost efficiency.
     """
 
     # Helper function to avoid rewriting the Gemini setup twice
@@ -120,9 +119,8 @@ def call_llm_service(system_prompt: str, chat_history: List[dict], user_message:
         else:
             try:
                 return _call_gemini_model("gemini-1.5-flash")
-            
             except Exception as e:
-                print(f"WARNING: Primary Gemini Pro model failed ({e}). Switching to Flash fallback...")
+                print(f"WARNING: Gemini Flash model failed ({e}). Retrying...")
                 return _call_gemini_model("gemini-1.5-flash")
 
     except Exception as e:

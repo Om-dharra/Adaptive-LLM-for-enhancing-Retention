@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import List, Dict, Any
-from api.deps import get_db, get_current_user
-from api.models import QuizScore
+from backend.api.deps import get_db, get_current_user
+from backend.api.models import QuizScore
 
 router = APIRouter(
     prefix="/analytics",

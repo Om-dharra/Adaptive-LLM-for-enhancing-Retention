@@ -1,6 +1,6 @@
 
 from sqlalchemy.orm import Session
-from api.models import TelemetryLog, UserHistory
+from backend.api.models import TelemetryLog, UserHistory
 from datetime import datetime
 
 def aggregate_session_features(user_id: int, session_id: str, db: Session):

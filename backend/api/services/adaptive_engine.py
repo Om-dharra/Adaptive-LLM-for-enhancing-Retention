@@ -1,11 +1,11 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from api.models import UserHistory, QuizScore, StudentSkillIndex, LearningPath, TelemetryLog
-from api.ml.engine import predict_dependency_probability
-from api.services.telemetry_service import aggregate_session_features
+from backend.api.models import UserHistory, QuizScore, StudentSkillIndex, LearningPath, TelemetryLog
+from backend.api.ml.engine import predict_dependency_probability
+from backend.api.services.telemetry_service import aggregate_session_features
 
 import torch
-from api.services.dkt_model import DKTModel
+from backend.api.services.dkt_model import DKTModel
 
 NUM_SKILLS = 50
 model = DKTModel(num_skills=NUM_SKILLS)

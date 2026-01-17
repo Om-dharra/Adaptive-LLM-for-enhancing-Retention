@@ -67,59 +67,66 @@ export default function ChatSidebar({ onSelectSession, onNewChat }) {
     }
 
     return (
-        <div className="w-80 bg-white border-r h-[600px] flex flex-col shadow-sm transition-all duration-300">
+        <div className="w-80 bg-white/80 backdrop-blur-md border-r h-[600px] flex flex-col shadow-sm transition-all duration-300 rounded-l-2xl">
             {/* Header */}
-            <div className="p-4 border-b flex justify-between items-center">
-                <h2 className="font-bold text-gray-700 flex items-center gap-2">
-                    <Clock size={18} /> Chats
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-tl-2xl">
+                <h2 className="font-bold text-gray-800 flex items-center gap-2">
+                    <div className="bg-indigo-100 p-1.5 rounded-lg text-indigo-600">
+                        <Clock size={16} />
+                    </div>
+                    History
                 </h2>
-                <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 p-1 rounded-lg transition">
                     <ChevronLeft size={20} />
                 </button>
             </div>
 
             {/* New Chat Button */}
-            <div className="p-3">
+            <div className="p-4">
                 <button
                     onClick={handleNewChat}
-                    className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
                 >
-                    <PlusCircle size={18} /> New Chat
+                    <PlusCircle size={18} /> New Session
                 </button>
             </div>
 
             {/* Session List */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2 custom-scrollbar">
                 {sessions.length === 0 ? (
-                    <div className="text-center text-gray-400 mt-10 text-sm">No chats yet.</div>
+                    <div className="flex flex-col items-center justify-center h-40 text-gray-300 mt-10 text-center">
+                        <MessageSquare size={32} className="mb-2 opacity-50" />
+                        <span className="text-sm">No chats yet.<br />Start a new journey! 🚀</span>
+                    </div>
                 ) : (
                     sessions.map((session) => (
                         <div
                             key={session.session_id}
                             onClick={() => handleSelect(session)}
-                            className={`group relative p-3 rounded-lg cursor-pointer border transition ${selectedId === session.session_id
-                                ? 'bg-blue-50 border-blue-200'
-                                : 'hover:bg-gray-50 border-transparent hover:border-gray-200'
+                            className={`group relative p-3 rounded-xl cursor-pointer border transition-all duration-200 ${selectedId === session.session_id
+                                    ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                                    : 'bg-white border-transparent hover:bg-gray-50 hover:border-gray-200'
                                 }`}
                         >
-                            <p className={`text-sm font-medium truncate pr-6 ${selectedId === session.session_id ? 'text-blue-800' : 'text-gray-800'
-                                }`}>
-                                {session.title}
-                            </p>
+                            <div className="flex justify-between items-start mb-1">
+                                <p className={`text-sm font-semibold truncate w-[85%] ${selectedId === session.session_id ? 'text-indigo-900' : 'text-gray-700'}`}>
+                                    {session.title || "Untitled Session"}
+                                </p>
+                                {selectedId === session.session_id && <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5"></div>}
+                            </div>
 
-                            <div className="flex justify-between items-center mt-1">
-                                <span className="text-xs text-gray-400">{formatDate(session.last_updated)}</span>
-                                <MessageSquare size={12} className={
-                                    selectedId === session.session_id ? 'text-blue-400' : 'text-gray-300'
-                                } />
+                            <div className="flex justify-between items-center mt-2">
+                                <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                                    {formatDate(session.last_updated)}
+                                </span>
                             </div>
 
                             <button
                                 onClick={(e) => handleDeleteSession(e, session.session_id)}
-                                className="absolute top-3 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                className="absolute bottom-3 right-3 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1.5 hover:bg-red-50 rounded-lg"
                                 title="Delete Chat"
                             >
-                                <Trash2 size={16} />
+                                <Trash2 size={14} />
                             </button>
                         </div>
                     ))

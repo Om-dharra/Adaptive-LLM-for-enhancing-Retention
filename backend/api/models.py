@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSO
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
+import os
+
 
 class User(Base):
     __tablename__ = "users"
